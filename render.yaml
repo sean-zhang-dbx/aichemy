@@ -10,5 +10,7 @@ services:
         value: https://e2-demo-west.cloud.databricks.com
       - key: SERVING_ENDPOINT
         value: aichemy
-      - key: DATABRICKS_TOKEN
+      - key: DATABRICKS_CLIENT_ID
+        sync: false
+      - key: DATABRICKS_CLIENT_SECRET
         sync: false
