@@ -152,17 +152,25 @@ export async function fetchSkills() {
 /**
  * Fetch user info from the backend.
  * In Databricks Apps, the backend reads X-Forwarded-* headers.
- * Locally, falls back to defaults (configurable via env vars).
+ * Outside Databricks (e.g. Render), generates an anonymous browser-local ID.
  * @returns {Promise<{user_name: string, user_email: string, user_id: string}>}
  */
 export async function fetchUserInfo() {
   try {
     const response = await fetch(`${API_BASE_URL}/api/user`)
-    if (response.ok) return response.json()
+    if (response.ok) {
+      const info = await response.json()
+      if (info.user_id) return info
+    }
   } catch {
-    // fall through to defaults
+    // fall through to anonymous ID
   }
-  return { user_name: null, user_email: null, user_id: null }
+  let anonId = localStorage.getItem('aichemy_anon_id')
+  if (!anonId) {
+    anonId = 'anon-' + crypto.randomUUID()
+    localStorage.setItem('aichemy_anon_id', anonId)
+  }
+  return { user_name: 'Guest', user_email: '', user_id: anonId }
 }
 
 /**
