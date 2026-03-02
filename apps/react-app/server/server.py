@@ -412,6 +412,11 @@ def _get_workspace_client() -> WorkspaceClient:
         kwargs = {}
         if DATABRICKS_HOST:
             kwargs["host"] = DATABRICKS_HOST
+        client_id = os.getenv("DATABRICKS_CLIENT_ID")
+        client_secret = os.getenv("DATABRICKS_CLIENT_SECRET")
+        if client_id and client_secret:
+            kwargs["client_id"] = client_id
+            kwargs["client_secret"] = client_secret
         _workspace_client = WorkspaceClient(**kwargs)
     return _workspace_client
 
@@ -1131,5 +1136,5 @@ if _dist_dir.exists():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("DATABRICKS_APP_PORT", "8000"))
+    port = int(os.getenv("PORT", os.getenv("DATABRICKS_APP_PORT", "8000")))
     uvicorn.run(app, host="0.0.0.0", port=port)

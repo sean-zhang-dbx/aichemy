@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: aichemy
+    runtime: docker
+    plan: free
+    rootDir: apps/react-app
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABRICKS_HOST
+        value: https://e2-demo-west.cloud.databricks.com
+      - key: SERVING_ENDPOINT
+        value: aichemy
+      - key: DATABRICKS_CLIENT_ID
+        sync: false
+      - key: DATABRICKS_CLIENT_SECRET
+        sync: false
+      - key: SP_CLIENT_ID
+        sync: false
+      - key: SP_CLIENT_SECRET
+        sync: false
