@@ -489,7 +489,7 @@ class Message(BaseModel):
     content: str
 
 class CustomInputs(BaseModel):
-    thread_id: str
+    thread_id: Optional[str] = None
 
 class AgentRequest(BaseModel):
     input: List[Message]
@@ -537,9 +537,10 @@ async def call_agent(request: AgentRequest):
             enhanced = build_prompt_with_skill(last_msg["content"], request.skill_name)
             messages[-1] = {"role": last_msg["role"], "content": enhanced}
 
+        thread_id = request.custom_inputs.thread_id if request.custom_inputs else None
         input_dict = {
             "input": messages,
-            "custom_inputs": {"thread_id": request.custom_inputs.thread_id},
+            "custom_inputs": {"thread_id": thread_id or str(uuid4())},
             "databricks_options": {"return_trace": True},
         }
 
@@ -627,9 +628,10 @@ async def call_agent_stream(request: AgentRequest):
                 enhanced = build_prompt_with_skill(last_msg["content"], request.skill_name)
                 messages[-1] = {"role": last_msg["role"], "content": enhanced}
 
+            thread_id = request.custom_inputs.thread_id if request.custom_inputs else None
             input_dict = {
                 "input": messages,
-                "custom_inputs": {"thread_id": request.custom_inputs.thread_id},
+                "custom_inputs": {"thread_id": thread_id or str(uuid4())},
                 "databricks_options": {"return_trace": True},
             }
 
