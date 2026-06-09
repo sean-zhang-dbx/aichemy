@@ -6,6 +6,7 @@ and parsed agent steps (tool calls, genie results).
 """
 
 import json
+import os
 from uuid import uuid4
 from datetime import datetime, timezone
 from contextlib import contextmanager
@@ -58,11 +59,16 @@ class ProjectDB:
             if not (sp_client_id and sp_client_secret):
                 raise RuntimeError("SP credentials not found in secrets")
 
-            self._sp_client = WorkspaceClient(
-                host=self._host,
-                client_id=sp_client_id,
-                client_secret=sp_client_secret,
-            )
+            saved_token = os.environ.pop("DATABRICKS_TOKEN", None)
+            try:
+                self._sp_client = WorkspaceClient(
+                    host=self._host,
+                    client_id=sp_client_id,
+                    client_secret=sp_client_secret,
+                )
+            finally:
+                if saved_token is not None:
+                    os.environ["DATABRICKS_TOKEN"] = saved_token
 
             endpoint = self._sp_client.postgres.get_endpoint(
                 name=self._lakebase_endpoint_name

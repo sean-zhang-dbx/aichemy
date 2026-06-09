@@ -86,6 +86,11 @@ def init_mlflow():
 
 
 def get_secret(scope: str, key: str) -> str:
+    """Get a secret. Checks SECRET_<SCOPE>_<KEY> env var first, then Databricks secrets API."""
+    env_name = f"SECRET_{scope}_{key}".upper().replace("-", "_")
+    env_val = os.environ.get(env_name)
+    if env_val:
+        return env_val
     w0 = WorkspaceClient()
     secret_base64 = w0.secrets.get_secret(scope, key).value
     return b64decode(secret_base64).decode("utf-8")
@@ -118,11 +123,17 @@ def init_workspace_client(cfg, SP=False):
         if client_id and client_secret:
             try:
                 print(f"Workspace client initialized with SP: {client_id}")
-                return WorkspaceClient(
-                    host=cfg["host"], 
-                    client_id=client_id, 
-                    client_secret=client_secret
-                )
+                saved_token = os.environ.pop("DATABRICKS_TOKEN", None)
+                try:
+                    ws = WorkspaceClient(
+                        host=cfg["host"],
+                        client_id=client_id,
+                        client_secret=client_secret,
+                    )
+                finally:
+                    if saved_token is not None:
+                        os.environ["DATABRICKS_TOKEN"] = saved_token
+                return ws
             except Exception as e:
                 print(
                     f"Error initializing workspace client with SP. Using WorkspaceClient() instead: {e}"
