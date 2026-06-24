@@ -157,10 +157,10 @@ export default function ChatPanel({
           </a>
           <a
             className="header-btn"
-            href="https://e2-demo-west.cloud.databricks.com/apps-v2/app/aichemy/overview?o=2556758628403379"
+            href="https://github.com/databricks-industry-solutions/aichemy"
             target="_blank"
             rel="noopener noreferrer"
-            title="View code"
+            title="View source code on GitHub"
           >
             Code
           </a>
