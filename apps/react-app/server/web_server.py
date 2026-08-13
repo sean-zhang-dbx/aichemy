@@ -47,6 +47,7 @@ from server.dataclass import (
     CreateProjectRequest,
     UpdateProjectRequest,
     RebuildRequest,
+    ResetRequest,
 )
 
 load_env_from_app_yaml()
@@ -342,6 +343,24 @@ async def rebuild_agent(req: RebuildRequest):
             f"http://0.0.0.0:{AGENT_PORT}/agent-rebuild",
             json={"llm_endpoint": req.llm_endpoint, "enabled_mcps": req.enabled_mcps},
             timeout=10,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"ok": False, "detail": str(e)}
+
+
+@app.post("/api/agent/reset")
+async def reset_thread(req: ResetRequest):
+    """Clear the agent's checkpointer history for a conversation thread.
+
+    The thread_id is the project id. Without this, Reset only clears the UI and
+    project store while the agent keeps the full conversation in its checkpointer.
+    """
+    try:
+        resp = requests.post(
+            f"http://0.0.0.0:{AGENT_PORT}/agent-reset",
+            json={"thread_id": req.thread_id},
+            timeout=30,
         )
         return resp.json()
     except Exception as e:

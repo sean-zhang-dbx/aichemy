@@ -309,6 +309,28 @@ export async function rebuildAgent({ llmEndpoint, enabledMcps } = {}) {
 }
 
 /**
+ * Clear the agent's server-side conversation history (LangGraph checkpointer)
+ * for a thread. The thread_id is the project id. Without this, Reset only clears
+ * the UI and project store while the agent keeps the full conversation.
+ * @param {string} threadId
+ * @returns {Promise<{ok: boolean, detail: string}>}
+ */
+export async function resetThread(threadId) {
+  if (!threadId) return { ok: false, detail: 'no thread_id' }
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/agent/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thread_id: threadId }),
+    })
+    if (response.ok) return response.json()
+    return { ok: false, detail: `HTTP ${response.status}` }
+  } catch (e) {
+    return { ok: false, detail: e.message }
+  }
+}
+
+/**
  * Fetch DB backend status from the health endpoint.
  * @returns {Promise<{db_backend: string, db_detail: string}>}
  */

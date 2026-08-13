@@ -89,6 +89,26 @@ async def agent_config_endpoint(request):
     return JSONResponse(_agent_mod.get_current_config())
 
 
+async def agent_reset_endpoint(request):
+    """Clear the checkpointer history for a conversation thread."""
+    if _agent_mod is None:
+        return _agent_import_error()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    thread_id = body.get("thread_id")
+    if not thread_id:
+        return JSONResponse({"ok": False, "detail": "thread_id required"}, status_code=400)
+    try:
+        await _agent_mod.reset_thread(thread_id)
+        return JSONResponse({"ok": True, "detail": f"Thread {thread_id} cleared"})
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "detail": f"{type(e).__name__}: {e}"}, status_code=500
+        )
+
+
 async def agent_rebuild_endpoint(request):
     """Trigger a background agent rebuild with new settings. Returns immediately."""
     if _agent_mod is None:
@@ -108,6 +128,7 @@ app.routes.insert(0, Route("/agent-warmup", agent_warmup_endpoint, methods=["POS
 app.routes.insert(0, Route("/agent-tools", agent_tools_endpoint, methods=["GET"]))
 app.routes.insert(0, Route("/agent-config", agent_config_endpoint, methods=["GET"]))
 app.routes.insert(0, Route("/agent-rebuild", agent_rebuild_endpoint, methods=["POST"]))
+app.routes.insert(0, Route("/agent-reset", agent_reset_endpoint, methods=["POST"]))
 
 def main():
     # Required when run on Databricks Apps (or as subprocess): nest_asyncio + uvloop

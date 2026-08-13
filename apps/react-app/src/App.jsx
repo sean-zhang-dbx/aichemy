@@ -16,6 +16,7 @@ import {
   loadProject,
   saveProject,
   deleteProject as deleteProjectAPI,
+  resetThread,
 } from './api/agentAPI'
 
 const TOPIC_SNIPPET_MAX = 48
@@ -271,6 +272,12 @@ export default function App() {
     setIsLoading(false)
     setStatusMessage('')
     if (currentProjectId) {
+      // Clear the agent's server-side conversation history (LangGraph
+      // checkpointer, keyed by thread_id = project id). Clearing the UI and
+      // project store alone leaves the agent still remembering the thread.
+      resetThread(currentProjectId).then(res => {
+        if (!res.ok) console.error('Failed to clear agent thread:', res.detail)
+      })
       saveProject(currentProjectId, {
         messages: [],
         agent_steps: { toolCallGroups: [], genieGroups: [] },

@@ -379,6 +379,30 @@ async def _wait_for_agent() -> None:
         raise RuntimeError(msg)
 
 
+async def reset_thread(thread_id: str) -> None:
+    """Delete all checkpointer state for a conversation thread.
+
+    Conversation history is persisted by the LangGraph ``AsyncCheckpointSaver``
+    keyed by ``thread_id``. Clearing the UI/project store alone leaves this state
+    intact, so the agent keeps "remembering" a reset conversation. This wipes the
+    thread at the source. Reads Lakebase config directly so it works even if the
+    agent build failed.
+    """
+    from databricks_langchain import AsyncCheckpointSaver
+    from agent.utils import init_workspace_client
+
+    lb = _cfg["lakebase"]
+    ws = init_workspace_client(_cfg, SP=True)
+    async with AsyncCheckpointSaver(
+        project=lb["project_id"],
+        branch=lb["branch_id"],
+        workspace_client=ws,
+    ) as checkpointer:
+        await checkpointer.setup()
+        await checkpointer.adelete_thread(thread_id)
+    logger.info("Cleared checkpointer thread_id=%s", thread_id)
+
+
 @invoke()
 async def predict(request: ResponsesAgentRequest) -> ResponsesAgentResponse:
     """Handle agent inference requests via AgentServer /invocations."""

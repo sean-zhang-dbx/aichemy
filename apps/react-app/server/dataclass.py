@@ -36,3 +36,7 @@ class UpdateProjectRequest(BaseModel):
 class RebuildRequest(BaseModel):
     llm_endpoint: Optional[str] = None
     enabled_mcps: Optional[List[str]] = None
+
+
+class ResetRequest(BaseModel):
+    thread_id: str
