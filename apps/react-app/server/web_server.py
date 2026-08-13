@@ -38,7 +38,9 @@ from server.utils_web import (
     build_prompt_with_skill,
     discover_skills,
     check_all_mcp_servers,
+    strip_tool_call_tags,
 )
+from server.tool_xml_filter import ToolCallXMLStreamFilter
 from server.utils_lakebase import ProjectDB
 from server.dataclass import (
     AgentRequest,
@@ -136,6 +138,29 @@ async def call_agent_stream(request: AgentRequest):
         "stream": True,
     }
 
+    # Some models emit tool use as literal <function_calls> XML in the text
+    # channel instead of as structured tool calls. This filter removes that XML
+    # from the visible transcript and reconstructs the calls so we can re-emit
+    # them as structured tool-call events for the Agent Activity panel.
+    xml_filter = ToolCallXMLStreamFilter()
+    call_seq = 0
+    last_text_ctx: dict = {}
+
+    def _tool_call_events(calls: list) -> list:
+        """Turn parsed tool calls into synthetic tool_call_start/done SSE events."""
+        nonlocal call_seq
+        events = []
+        for call in calls:
+            call_seq += 1
+            data = {
+                "call_id": f"xmlcall_{call_seq}",
+                "name": call.get("name", ""),
+                "arguments": json.dumps(call.get("arguments", {})),
+            }
+            events.append(_sse({"type": "tool_call_start", "data": data}))
+            events.append(_sse({"type": "tool_call_done", "data": data}))
+        return events
+
     async def stream_generator():
         try:
             timeout = httpx.Timeout(AGENT_READ_TIMEOUT, connect=AGENT_CONNECT_TIMEOUT)
@@ -154,8 +179,57 @@ async def call_agent_stream(request: AgentRequest):
                         return
 
                     async for line in resp.aiter_lines():
-                        if line:
-                            yield f"{line}\n\n"
+                        if not line or not line.startswith("data: "):
+                            continue
+                        data_str = line[len("data: "):]
+                        try:
+                            event = json.loads(data_str)
+                        except (ValueError, TypeError):
+                            yield f"{line}\n\n"  # not JSON — forward verbatim
+                            continue
+
+                        etype = event.get("type")
+
+                        if etype == "response.output_text.delta":
+                            last_text_ctx.update({
+                                k: event[k] for k in
+                                ("item_id", "output_index", "content_index")
+                                if k in event
+                            })
+                            visible, calls = xml_filter.feed(event.get("delta") or "")
+                            if visible:
+                                event["delta"] = visible
+                                yield _sse(event)
+                            for ev in _tool_call_events(calls):
+                                yield ev
+                            continue
+
+                        if etype == "response.content_part.done":
+                            part = event.get("part") or {}
+                            if part.get("text"):
+                                part["text"] = strip_tool_call_tags(part["text"])
+                            yield _sse(event)
+                            continue
+
+                        if etype == "response.output_item.done":
+                            item = event.get("item") or {}
+                            if item.get("type") == "message":
+                                for block in item.get("content") or []:
+                                    if isinstance(block, dict) and block.get("text"):
+                                        block["text"] = strip_tool_call_tags(block["text"])
+                            yield _sse(event)
+                            continue
+
+                        yield f"{line}\n\n"  # pass through unchanged
+
+                    # Flush any benign text still buffered; drop unclosed XML.
+                    visible, calls = xml_filter.flush()
+                    if visible:
+                        flush_event = {"type": "response.output_text.delta",
+                                       "delta": visible, **last_text_ctx}
+                        yield _sse(flush_event)
+                    for ev in _tool_call_events(calls):
+                        yield ev
 
         except Exception as e:
             logger.exception("Error proxying AgentServer stream")
