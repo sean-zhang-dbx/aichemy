@@ -38,6 +38,12 @@ _disabled_mcps_ctx: contextvars.ContextVar[frozenset] = contextvars.ContextVar(
     "disabled_mcps", default=frozenset()
 )
 
+# Hard ceiling for any single MCP tool call. A server that accepts the
+# connection but never returns a result (e.g. a hung SSE read) is skipped after
+# this many seconds instead of stalling the whole response up to the app's read
+# timeout (AGENT_READ_TIMEOUT, ~600s). Overridable via env for tuning.
+MCP_CALL_TIMEOUT_SECONDS = int(os.environ.get("MCP_CALL_TIMEOUT_SECONDS", "30"))
+
 
 def load_config(file=None):
     """Load config.yml from app root (parent of agent/)."""
@@ -244,7 +250,12 @@ def build_mcp_list(cfg, ws_client=WorkspaceClient()):
     # --- External (non-Databricks) MCP servers ---
     for name, mcp_cfg in cfg.get("external_mcp", {}).items():
         url = mcp_cfg["url"]
-        kwargs = dict(name=name, url=url, timeout=60, terminate_on_close=False)
+        kwargs = dict(
+            name=name, url=url,
+            timeout=MCP_CALL_TIMEOUT_SECONDS,
+            sse_read_timeout=MCP_CALL_TIMEOUT_SECONDS,
+            terminate_on_close=False,
+        )
         if "secret" in mcp_cfg:
             kwargs["headers"] = {
                 "Authorization": f"Bearer {get_secret(scope=mcp_cfg.get('scope'), key=mcp_cfg.get('secret'))}"
@@ -259,7 +270,8 @@ def build_mcp_list(cfg, ws_client=WorkspaceClient()):
                 name=name,
                 url=f"{host}api/2.0/mcp/external/{conn_name}",
                 workspace_client=ws_client,
-                timeout=60,
+                timeout=MCP_CALL_TIMEOUT_SECONDS,
+                sse_read_timeout=MCP_CALL_TIMEOUT_SECONDS,
                 terminate_on_close=False,
             )
         )
@@ -539,9 +551,23 @@ def wrap_mcp_tools_with_resilience(tools, max_concurrent=2, call_delay=1.0):
 
             async with sem:
                 try:
-                    result = await _orig(*args, **kwargs)
+                    result = await asyncio.wait_for(
+                        _orig(*args, **kwargs),
+                        timeout=MCP_CALL_TIMEOUT_SECONDS + 5,
+                    )
                     await asyncio.sleep(call_delay)
                     return _strip_lc_ids(result)
+                except (asyncio.TimeoutError, TimeoutError):
+                    logger.warning(
+                        "MCP tool '%s' timed out after %ss — skipping",
+                        _name, MCP_CALL_TIMEOUT_SECONDS + 5,
+                    )
+                    msg = (
+                        f"Tool '{_name}' timed out after {MCP_CALL_TIMEOUT_SECONDS + 5}s "
+                        f"and was skipped — the MCP server did not respond. Do not retry "
+                        f"it; use another tool or answer from what you already have."
+                    )
+                    return (msg, None) if _tuple else msg
                 except Exception as e:
                     logger.error(
                         "MCP tool '%s' error: %s: %s", _name, type(e).__name__, e
