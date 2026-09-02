@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { normalizeMarkdownTables } from '../utils/markdown.js'
 import { WORKFLOWS_BY_NAME, PLACEHOLDER_LABELS } from '../workflows.js'
 
 function ElapsedTimer() {
@@ -251,7 +252,7 @@ export default function ChatPanel({
             <div className="message-content">
               {msg.role === 'assistant' ? (
                 <>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeMarkdownTables(msg.content)}</ReactMarkdown>
                   {msg.traceId && (
                     <div className="trace-id-row">
                       <a
