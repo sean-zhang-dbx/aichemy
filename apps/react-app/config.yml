@@ -67,27 +67,25 @@ external_mcp:
 # custom_mcp:
   # opentargets:
   #   url: https://opentargets-mcp-2556758628403379.aws.databricksapps.com/mcp
-# retriever disabled 2026-08-14: Vector Search endpoint dbdemos_vs_endpoint /
-# index healthcare_lifesciences.qsar.zinc_vs no longer exists on e2-demo-west,
-# which made the whole agent build fail (NotFound: AI Search endpoint ...).
-# Recreate that endpoint + index, then restore the block below to re-enable ZINC.
-retriever: {}
-# retriever:
-#   zinc_vector_search:
-#     vs_endpoint: dbdemos_vs_endpoint
-#     vs_index: healthcare_lifesciences.qsar.zinc_vs
-#     vs_source: healthcare_lifesciences.qsar.zinc15_250k_full
-#     embedding: databricks-bge-large-en
-#     k: 5
-#     text_column: smiles
-#     columns:
-#     - zinc_id
-#     - smiles
-#     - mwt
-#     - logp
-#     - purchasable
-#     search_type: vector
-#     tool_description: Search for drug-like chemicals in the ZINC database based on 1024-bit ECFP molecular fingerprint embeddings
+# retriever re-enabled 2026-09-04: zinc_vs was rebuilt on endpoint aichemy_endpoints
+# (DELTA_SYNC, 250k rows, self-managed 1024-bit ECFP embeddings). Index + endpoint +
+# get_embedding UDF + databricks-bge-large-en all verified live before re-enabling.
+retriever:
+  zinc_vector_search:
+    vs_endpoint: aichemy_endpoints
+    vs_index: healthcare_lifesciences.qsar.zinc_vs
+    vs_source: healthcare_lifesciences.qsar.zinc15_250k_full
+    embedding: databricks-bge-large-en
+    k: 5
+    text_column: smiles
+    columns:
+    - zinc_id
+    - smiles
+    - mwt
+    - logp
+    - purchasable
+    search_type: vector
+    tool_description: Search for drug-like chemicals in the ZINC database based on 1024-bit ECFP molecular fingerprint embeddings
 lakebase:
   project_id: 605906e9-742e-4c1a-aef4-11f64b8a74c2
   branch_id: br-aged-scene-d1iq7b6x
